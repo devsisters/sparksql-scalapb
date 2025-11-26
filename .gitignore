@@ -20,3 +20,6 @@ project/metals.sbt
 .idea
 .bloop
 .metals
+.cursor/mcp.json
+.vscode/settings.json
+project/project/metals.sbt
