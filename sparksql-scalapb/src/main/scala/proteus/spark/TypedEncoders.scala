@@ -1,4 +1,4 @@
-package scalapb.spark
+package proteus.spark
 
 import com.google.protobuf.ByteString
 import frameless.{TypedEncoder, TypedExpressionEncoder}
@@ -6,21 +6,18 @@ import org.apache.spark.sql.Encoder
 import org.apache.spark.sql.catalyst.expressions.objects.{Invoke, StaticInvoke}
 import org.apache.spark.sql.catalyst.expressions.{Expression, If, IsNull, Literal}
 import org.apache.spark.sql.types._
-import scalapb._
-import scalapb.descriptors.Reads
+import proteus.*
 
 import scala.reflect.ClassTag
 
 trait TypedEncoders extends FromCatalystHelpers with ToCatalystHelpers with Serializable {
-  class MessageTypedEncoder[T <: GeneratedMessage](implicit
-      cmp: GeneratedMessageCompanion[T],
-      ct: ClassTag[T]
-  ) extends TypedEncoder[T] {
+  class MessageTypedEncoder[T](implicit codec: ProtobufCodec.Message[T], ct: ClassTag[T])
+      extends TypedEncoder[T] {
     override def nullable: Boolean = false
 
     override def jvmRepr: DataType = ObjectType(ct.runtimeClass)
 
-    override def catalystRepr: DataType = protoSql.schemaFor(cmp)
+    override def catalystRepr: DataType = protoSql.schemaFor(codec)
 
     def fromCatalyst(path: Expression): Expression = {
       val expr = pmessageFromCatalyst(cmp, path)
@@ -39,15 +36,13 @@ trait TypedEncoders extends FromCatalystHelpers with ToCatalystHelpers with Seri
     }
 
     override def toCatalyst(path: Expression): Expression = {
-      val ret = messageToCatalyst(cmp, path)
+      val ret = messageToCatalyst(codec, path)
       ret
     }
   }
 
-  class EnumTypedEncoder[T <: GeneratedEnum](implicit
-      cmp: GeneratedEnumCompanion[T],
-      ct: ClassTag[T]
-  ) extends TypedEncoder[T] {
+  class EnumTypedEncoder[T](implicit codec: ProtobufCodec.Enum[T], ct: ClassTag[T])
+      extends TypedEncoder[T] {
     override def nullable: Boolean = false
 
     override def jvmRepr: DataType = ObjectType(ct.runtimeClass)
@@ -99,14 +94,14 @@ trait TypedEncoders extends FromCatalystHelpers with ToCatalystHelpers with Seri
 }
 
 trait Implicits {
-  private[scalapb] val typedEncoders: TypedEncoders
+  private[proteus] val typedEncoders: TypedEncoders
 
   implicit def messageTypedEncoder[
-      T <: GeneratedMessage: GeneratedMessageCompanion: ClassTag
+      T: ProtobufCodec.Message: ClassTag
   ]: TypedEncoder[T] = new typedEncoders.MessageTypedEncoder[T]
 
-  implicit def enumTypedEncoder[T <: GeneratedEnum](implicit
-      cmp: GeneratedEnumCompanion[T],
+  implicit def enumTypedEncoder[T](implicit
+      codec: ProtobufCodec.Enum[T],
       ct: ClassTag[T]
   ): TypedEncoder[T] = new typedEncoders.EnumTypedEncoder[T]
 
@@ -116,11 +111,11 @@ trait Implicits {
   implicit def typedEncoderToEncoder[T: ClassTag](implicit
       ev: TypedEncoder[T]
   ): Encoder[T] =
-    TypedExpressionEncoder(ev)
+    TypedExpressionEncoder(using ev)
 }
 
 object Implicits extends Implicits {
-  private[scalapb] val typedEncoders: TypedEncoders = new TypedEncoders {
+  private[proteus] val typedEncoders: TypedEncoders = new TypedEncoders {
     @transient
     lazy val protoSql = ProtoSQL
   }

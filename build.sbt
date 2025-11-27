@@ -10,7 +10,7 @@ Global / concurrentRestrictions := Seq(
   Tags.limit(Tags.Test, 1)
 )
 
-val Scala3 = "3.6.3"
+val Scala3 = "3.7.2"
 
 lazy val Spark32 = Spark("3.2.3")
 
@@ -39,8 +39,10 @@ def scalapbPlugin(version: String) =
 lazy val `sparksql-scalapb` = (projectMatrix in file("sparksql-scalapb"))
   .defaultAxes()
   .settings(
+    resolvers ++= Seq(Resolver.sonatypeCentralSnapshots),
     libraryDependencies ++= Seq(
       "org.typelevel" %% framelessDatasetName.value % framelessDatasetVersion.value cross CrossVersion.for3Use2_13,
+      "com.github.ghostdogpr" %% "proteus-core" % "0.0.0+223-929f6f1e-SNAPSHOT",
       "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.value.scalapbVersion,
       "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.value.scalapbVersion % "protobuf",
       "org.apache.spark" %% "spark-sql" % spark.value.sparkVersion % "provided" cross CrossVersion.for3Use2_13,

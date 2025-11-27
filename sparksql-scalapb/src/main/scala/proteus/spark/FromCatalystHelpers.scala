@@ -1,4 +1,4 @@
-package scalapb.spark
+package proteus.spark
 
 import com.google.protobuf.ByteString
 import org.apache.spark.sql.catalyst.analysis.UnresolvedExtractValue
@@ -11,8 +11,6 @@ import org.apache.spark.sql.catalyst.expressions.objects.{
 }
 import org.apache.spark.sql.catalyst.expressions.{CreateArray, Expression, If, IsNull, Literal}
 import org.apache.spark.sql.types.{MapType, ObjectType}
-import scalapb.GeneratedMessageCompanion
-import scalapb.descriptors._
 import org.apache.spark.sql.catalyst.expressions.objects.CatalystToExternalMap
 import org.apache.spark.sql.catalyst.expressions.objects.LambdaVariable
 
@@ -21,36 +19,18 @@ import scala.collection.immutable
 trait FromCatalystHelpers {
   def protoSql: ProtoSQL
 
-  def schemaOptions: SchemaOptions = protoSql.schemaOptions
-
   def pmessageFromCatalyst(
       cmp: GeneratedMessageCompanion[?],
       input: Expression
   ): Expression = {
-    schemaOptions.messageEncoders.get(cmp.scalaDescriptor) match {
-      case Some(encoder) =>
-        StaticInvoke(
-          JavaHelpers.getClass,
-          ObjectType(classOf[PValue]),
-          "toPMessageAsPValue",
-          encoder.fromCatalyst(input) :: Nil
-        )
-      case None =>
-        val args: immutable.Seq[Expression] = {
-          if (schemaOptions.isUnpackedPrimitiveWrapper(cmp.scalaDescriptor)) {
-            cmp.scalaDescriptor.fields.map { fd =>
-              fieldFromCatalyst(cmp, fd, input)
-            }
-          } else {
-            val expressions: immutable.Seq[Expression] = cmp.scalaDescriptor.fields.map { fd =>
-              val newPath = addToPath(input, schemaOptions.columnNaming.fieldName(fd))
-              fieldFromCatalyst(cmp, fd, newPath)
-            }
-            expressions
-          }
-        }
-        pmessageFromCatalyst(input, cmp, args)
+    val args: immutable.Seq[Expression] = {
+      val expressions: immutable.Seq[Expression] = cmp.scalaDescriptor.fields.map { fd =>
+        val newPath = addToPath(input, columnNaming.fieldName(fd))
+        fieldFromCatalyst(cmp, fd, newPath)
+      }
+      expressions
     }
+    pmessageFromCatalyst(input, cmp, args)
   }
 
   def pmessageFromCatalyst(

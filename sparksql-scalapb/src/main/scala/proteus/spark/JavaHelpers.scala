@@ -1,9 +1,7 @@
-package scalapb.spark
+package proteus.spark
 
 import org.apache.spark.sql.catalyst.util.ArrayData
 import org.apache.spark.unsafe.types.UTF8String
-import scalapb.descriptors._
-import scalapb.{GeneratedEnum, GeneratedEnumCompanion, GeneratedMessage, GeneratedMessageCompanion}
 
 object JavaHelpers {
   def enumToString(

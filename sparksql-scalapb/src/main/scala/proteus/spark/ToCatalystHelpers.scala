@@ -1,4 +1,4 @@
-package scalapb.spark
+package proteus.spark
 
 import org.apache.spark.sql.catalyst.expressions.objects.{Invoke, MapObjects, StaticInvoke}
 import org.apache.spark.sql.catalyst.expressions.{
@@ -9,46 +9,30 @@ import org.apache.spark.sql.catalyst.expressions.{
   Literal
 }
 import org.apache.spark.sql.types.{BooleanType, IntegerType, ObjectType}
-import scalapb.descriptors.{Descriptor, FieldDescriptor, PValue, ScalaType}
-import scalapb.GeneratedMessageCompanion
 import org.apache.spark.sql.catalyst.expressions.objects.ExternalMapToCatalyst
-import scalapb.GeneratedMessage
+import proteus.*
+import proteus.ProtobufCodec.MessageField.SimpleField
 
 trait ToCatalystHelpers {
   def protoSql: ProtoSQL
 
-  def schemaOptions: SchemaOptions
-
-  def messageToCatalyst(
-      cmp: GeneratedMessageCompanion[?],
-      input: Expression
-  ): Expression = {
-    schemaOptions.messageEncoders.get(cmp.scalaDescriptor) match {
-      case Some(encoder) =>
-        encoder.toCatalyst(input)
-      case None =>
-        if (protoSql.schemaOptions.isUnpackedPrimitiveWrapper(cmp.scalaDescriptor)) {
-          val fd = cmp.scalaDescriptor.fields(0)
-          fieldToCatalyst(cmp, fd, input)
-        } else {
-          val nameExprs = cmp.scalaDescriptor.fields.map { field =>
-            Literal(schemaOptions.columnNaming.fieldName(field))
-          }
-
-          val valueExprs = cmp.scalaDescriptor.fields.map { field =>
-            fieldToCatalyst(cmp, field, input)
-          }
-
-          // the way exprs are encoded in CreateNamedStruct
-          val exprs = nameExprs.zip(valueExprs).flatMap { case (nameExpr, valueExpr) =>
-            nameExpr :: valueExpr :: Nil
-          }
-
-          val createExpr = CreateNamedStruct(exprs)
-          val nullExpr = Literal.create(null, createExpr.dataType)
-          If(IsNull(input), nullExpr, createExpr)
-        }
+  def messageToCatalyst(codec: ProtobufCodec.Message[?], input: Expression): Expression = {
+    val nameExprs = codec.simpleFields.map { field =>
+      Literal(field.name)
     }
+
+    val valueExprs = codec.simpleFields.map { field =>
+      fieldToCatalyst(codec, field, input)
+    }
+
+    // the way exprs are encoded in CreateNamedStruct
+    val exprs = nameExprs.zip(valueExprs).flatMap { case (nameExpr, valueExpr) =>
+      nameExpr :: valueExpr :: Nil
+    }
+
+    val createExpr = CreateNamedStruct(exprs)
+    val nullExpr = Literal.create(null, createExpr.dataType)
+    If(IsNull(input), nullExpr, createExpr)
   }
 
   def fieldGetterAndTransformer(
@@ -105,8 +89,8 @@ trait ToCatalystHelpers {
   }
 
   def fieldToCatalyst(
-      cmp: GeneratedMessageCompanion[?],
-      fd: FieldDescriptor,
+      codec: ProtobufCodec.Message[?],
+      fd: SimpleField[?],
       inputObject: Expression
   ): Expression = {
 
@@ -168,7 +152,7 @@ trait ToCatalystHelpers {
             "isEmpty",
             fieldGetter(inputObject) :: Nil
           ),
-          Literal.create(null, protoSql.dataTypeFor(fd)),
+          Literal.create(null, protoSql.dataTypeFor(fd.codec)),
           transform(fieldGetter(inputObject))
         )
     }
