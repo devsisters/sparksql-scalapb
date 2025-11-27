@@ -111,7 +111,7 @@ object JavaHelpers {
 
         if (valueDesc.scalaType.isInstanceOf[ScalaType.Message])
           s.iterator.map { m =>
-            (m.getField(keyDesc), m.getField(valueDesc))
+            (m.getField(keyDesc), m.getFieldByNumber(valueDesc.number))
           }
         else
           s.iterator.map { m =>
